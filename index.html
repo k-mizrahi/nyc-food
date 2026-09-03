@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kobi's NYC Food Recommendations</title>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --card: #ffffff;
+    --text: #2b2620;
+    --muted: #6b6258;
+    --accent: #c0392b;
+    --accent-soft: #f5e6e3;
+    --border: #e6ded2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1916;
+      --card: #26221e;
+      --text: #ede7de;
+      --muted: #a89d8f;
+      --accent: #e07a5f;
+      --accent-soft: #3a2c27;
+      --border: #3a342c;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    padding: 2rem 1rem 4rem;
+  }
+  .container { max-width: 640px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 2rem; }
+  h1 { font-size: 1.9rem; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); font-size: 1rem; }
+
+  .lang-toggle {
+    display: flex; justify-content: center; gap: 0.5rem; margin: 1.25rem 0 2rem;
+  }
+  .lang-toggle button {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    padding: 0.4rem 1.1rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  .lang-toggle button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.4rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .card h2 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+  .card p { margin-bottom: 0.6rem; color: var(--text); }
+  .card p:last-child { margin-bottom: 0; }
+  .card ul { margin: 0.4rem 0 0.6rem 1.4rem; }
+  [dir="rtl"] .card ul { margin: 0.4rem 1.4rem 0.6rem 0; }
+  .muted { color: var(--muted); font-size: 0.95rem; }
+
+  .map-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    padding: 0.5rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .map-link:hover { opacity: 0.88; }
+  .tag {
+    display: inline-block;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  footer { text-align: center; color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1 id="title-en">Kobi's NYC Food Recommendations</h1>
+    <h1 id="title-he" class="hidden">ההמלצות של קובי לאוכל בניו יורק</h1>
+  </header>
+
+  <div class="lang-toggle">
+    <button id="btn-en" class="active" onclick="setLang('en')">English</button>
+    <button id="btn-he" onclick="setLang('he')">עברית</button>
+  </div>
+
+  <!-- ============ ENGLISH ============ -->
+  <div id="content-en">
+
+    <div class="card">
+      <h2>Want recommendations tailored to you?</h2>
+      <p>Reach out to me wherever you got this link from, and tell me a bit about your trip:</p>
+      <ul>
+        <li>Who's coming — kids, grown-ups, the whole mix?</li>
+        <li>How much time do you have?</li>
+        <li>What are you into — street food, fine dining, coffee, something specific?</li>
+        <li>Any dietary needs — kosher, vegetarian, gluten-free, anything else?</li>
+      </ul>
+      <p>The more you tell me, the better the recommendations.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">The Big Map</span>
+      <h2>Everything Food</h2>
+      <p>My general NYC food map. Fair warning: this is stuff I marked <em>for myself</em>. Some places I've tried and recommend; others I saw on Instagram or heard about from someone and thought were worth checking out.</p>
+      <p>It includes a lot of places across every genre — street food, fancy restaurants, spots that need booking well in advance. Use it as a starting point to browse, not as a list where everything is personally vetted.</p>
+      <a class="map-link" href="MAP_LINK_FOOD" target="_blank" rel="noopener">Open the map</a>
+    </div>
+
+    <div class="card">
+      <span class="tag">Pizza</span>
+      <h2>Just Pizza</h2>
+      <p>Pizza gets its own map. These are my priorities.</p>
+      <a class="map-link" href="MAP_LINK_PIZZA" target="_blank" rel="noopener">Open the pizza map</a>
+    </div>
+
+    <div class="card">
+      <span class="tag">Coffee</span>
+      <h2>Coffee Shops I Like</h2>
+      <p>Coffee shops I personally like — mostly specialty coffee, but not only. Unlike the big map, these are places I actually go to.</p>
+      <a class="map-link" href="MAP_LINK_COFFEE" target="_blank" rel="noopener">Open the coffee map</a>
+    </div>
+
+  </div>
+
+  <!-- ============ HEBREW ============ -->
+  <div id="content-he" class="hidden" dir="rtl" lang="he">
+
+    <div class="card">
+      <h2>רוצים המלצות מותאמות אישית?</h2>
+      <p>דברו איתי איפה שקיבלתם את הלינק הזה, וספרו לי קצת על הטיול שלכם:</p>
+      <ul>
+        <li>מי מגיע — ילדים, מבוגרים, שילוב?</li>
+        <li>כמה זמן יש לכם?</li>
+        <li>מה מעניין אתכם — אוכל רחוב, מסעדות יוקרה, קפה, משהו ספציפי?</li>
+        <li>הגבלות תזונתיות — כשר, צמחוני, ללא גלוטן, כל דבר אחר?</li>
+      </ul>
+      <p>ככל שתספרו יותר, ההמלצות יהיו טובות יותר.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">המפה הגדולה</span>
+      <h2>כל האוכל</h2>
+      <p>מפת האוכל הכללית שלי בניו יורק. שימו לב: אלה מקומות שסימנתי <em>לעצמי</em>. בחלקם הייתי ואני ממליץ; אחרים ראיתי באינסטגרם או שמעתי עליהם ממישהו וחשבתי ששווה לבדוק.</p>
+      <p>יש שם המון מקומות מכל הסוגים — אוכל רחוב, מסעדות מפוארות, מקומות שדורשים הזמנה הרבה מראש. תשתמשו בה כנקודת התחלה לשיטוט, לא כרשימה שבה כל מקום מומלץ אישית.</p>
+      <a class="map-link" href="MAP_LINK_FOOD" target="_blank" rel="noopener">למפה</a>
+    </div>
+
+    <div class="card">
+      <span class="tag">פיצה</span>
+      <h2>רק פיצה</h2>
+      <p>לפיצה מגיעה מפה משלה. אלה סדרי העדיפויות שלי.</p>
+      <a class="map-link" href="MAP_LINK_PIZZA" target="_blank" rel="noopener">למפת הפיצות</a>
+    </div>
+
+    <div class="card">
+      <span class="tag">קפה</span>
+      <h2>בתי קפה שאני אוהב</h2>
+      <p>בתי קפה שאני אישית אוהב — בעיקר קפה ספשלטי, אבל לא רק. בניגוד למפה הגדולה, כאן אלה מקומות שאני באמת הולך אליהם.</p>
+      <a class="map-link" href="MAP_LINK_COFFEE" target="_blank" rel="noopener">למפת הקפה</a>
+    </div>
+
+  </div>
+
+  <footer>
+    <span id="footer-en">Made with hunger in NYC</span>
+    <span id="footer-he" class="hidden">נעשה עם רעב בניו יורק</span>
+  </footer>
+
+</div>
+
+<script>
+  function setLang(lang) {
+    const en = lang === 'en';
+    document.getElementById('content-en').classList.toggle('hidden', !en);
+    document.getElementById('content-he').classList.toggle('hidden', en);
+    document.getElementById('title-en').classList.toggle('hidden', !en);
+    document.getElementById('title-he').classList.toggle('hidden', en);
+    document.getElementById('footer-en').classList.toggle('hidden', !en);
+    document.getElementById('footer-he').classList.toggle('hidden', en);
+    document.getElementById('btn-en').classList.toggle('active', en);
+    document.getElementById('btn-he').classList.toggle('active', !en);
+    document.documentElement.lang = en ? 'en' : 'he';
+    try { localStorage.setItem('lang', lang); } catch (e) {}
+  }
+  try {
+    const saved = localStorage.getItem('lang');
+    if (saved === 'he') setLang('he');
+    else if (!saved && navigator.language && navigator.language.startsWith('he')) setLang('he');
+  } catch (e) {}
+</script>
+</body>
+</html>
