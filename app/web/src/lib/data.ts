@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type {
   DefaultAction,
@@ -71,16 +72,22 @@ export async function fetchAll(): Promise<{
   }
 }
 
-// Calls the dev-server proxy (vite.config.ts), which holds the Google key.
-export async function resolvePlace(query: string): Promise<Resolved | null> {
-  const res = await fetch('/api/resolve-place', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  })
-  const payload = await res.json()
-  if (!res.ok) throw new Error(payload.error ?? `resolve failed (${res.status})`)
-  return payload.match as Resolved | null
+// Calls the resolve-place Edge Function, which holds the Google key and can
+// expand maps.app.goo.gl short links server-side. Owner JWT enforced there.
+export async function resolvePlace(input: {
+  query?: string
+  url?: string
+}): Promise<Resolved | null> {
+  const { data, error } = await supabase.functions.invoke('resolve-place', { body: input })
+  if (error) {
+    let detail = error.message
+    if (error instanceof FunctionsHttpError) {
+      const body = await error.context.json().catch(() => null)
+      if (body?.error) detail = body.error
+    }
+    throw new Error(detail)
+  }
+  return data.match as Resolved | null
 }
 
 // Slug keeps letters of any script (Hebrew labels are fine); a 23505 means the
@@ -210,6 +217,53 @@ async function linkLists(
 // If a place with this CID already exists (interrupted undo, re-import), the
 // rows merge into it and its fields are left untouched.
 // Slug collisions retry with a numeric suffix; any other error surfaces raw.
+async function insertPlaceWithSlugRetry(
+  payload: Record<string, unknown>,
+  base: string,
+): Promise<Place> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const slug = attempt === 0 ? base : `${base}-${attempt + 1}`
+    const { data, error } = await supabase
+      .from('places')
+      .insert({ ...payload, slug })
+      .select(PLACE_SELECT)
+      .single()
+    if (!error) return data as unknown as Place
+    const slugCollision = error.code === '23505' && error.message.includes('places_slug_key')
+    if (!slugCollision) throw new Error(error.message)
+  }
+  throw new Error(`no free slug for '${base}' after 5 attempts`)
+}
+
+// Quick-add: create a place directly from a resolved Google match (no import
+// rows involved). CID comes from the pasted link when it had one.
+export async function quickAddPlace(
+  form: KeepForm,
+  resolved: Resolved | null,
+  cid: string | null,
+): Promise<Place> {
+  const base =
+    slugify(form.name) || (cid ? `place-${cid}` : `place-${crypto.randomUUID().slice(0, 8)}`)
+  const payload = {
+    name: form.name.trim(),
+    status: form.status,
+    in_nyc: form.in_nyc,
+    cuisine: emptyToNull(form.cuisine),
+    borough: emptyToNull(form.borough),
+    neighborhood: emptyToNull(form.neighborhood),
+    rec_source: emptyToNull(form.rec_source),
+    note_en: emptyToNull(form.note_en),
+    note_he: emptyToNull(form.note_he),
+    cid,
+    gmaps_url: cid ? `https://maps.google.com/?cid=${cid}` : resolved?.expanded_url ?? null,
+    ...resolvedPatch(resolved),
+  }
+  if (payload.name === '') throw new Error('name is required')
+  const place = await insertPlaceWithSlugRetry(payload, base)
+  await addPlaceTags(place.id, form.tagIds)
+  return place
+}
+
 function resolvedPatch(resolved: Resolved | null | undefined) {
   if (!resolved) return {}
   return {
@@ -266,22 +320,7 @@ export async function keepGroup(
   }
   if (payload.name === '') throw new Error('name is required')
 
-  let place: Place | null = null
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const slug = attempt === 0 ? base : `${base}-${attempt + 1}`
-    const { data, error } = await supabase
-      .from('places')
-      .insert({ ...payload, slug })
-      .select(PLACE_SELECT)
-      .single()
-    if (!error) {
-      place = data as unknown as Place
-      break
-    }
-    const slugCollision = error.code === '23505' && error.message.includes('places_slug_key')
-    if (!slugCollision) throw new Error(error.message)
-  }
-  if (!place) throw new Error(`no free slug for '${base}' after 5 attempts`)
+  const place = await insertPlaceWithSlugRetry(payload, base)
 
   await linkLists(place.id, rows, listIdBySourceFile)
   await addPlaceTags(place.id, form.tagIds)

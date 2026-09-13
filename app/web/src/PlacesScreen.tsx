@@ -99,7 +99,7 @@ export function PlacesScreen({
     setResolving(true)
     setNoMatch(false)
     try {
-      const match = await resolvePlace(form.name)
+      const match = await resolvePlace({ query: form.name })
       setResolved(match)
       setNoMatch(match === null)
       if (match) {

@@ -44,7 +44,7 @@ export interface Place {
   lng: number | null
 }
 
-// One Google Places searchText match, produced by the dev-server proxy
+// One Google Places searchText match, produced by the resolve-place Edge Function
 export interface Resolved {
   google_place_id: string
   name: string | null
@@ -53,6 +53,8 @@ export interface Resolved {
   lng: number | null
   borough: string | null
   neighborhood: string | null
+  cid: string | null
+  expanded_url: string | null
 }
 
 export interface Tag {

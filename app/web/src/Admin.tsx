@@ -6,8 +6,9 @@ import type { ImportRow, List, Place, PlaceTag, Tag } from './lib/types'
 import { ListsScreen } from './ListsScreen'
 import { ReviewScreen } from './ReviewScreen'
 import { PlacesScreen } from './PlacesScreen'
+import { QuickAddScreen } from './QuickAddScreen'
 
-type Tab = 'overview' | 'lists' | 'review' | 'places'
+type Tab = 'overview' | 'add' | 'lists' | 'review' | 'places'
 
 export function Admin({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>('overview')
@@ -72,7 +73,7 @@ export function Admin({ session }: { session: Session }) {
       </header>
 
       <nav className="tabs">
-        {(['overview', 'lists', 'review', 'places'] as Tab[]).map((t) => (
+        {(['overview', 'add', 'lists', 'review', 'places'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t}
           </button>
@@ -117,6 +118,20 @@ export function Admin({ session }: { session: Session }) {
           rows={rows}
           onRowsUpdated={applyRowUpdates}
           onListUpdated={applyListUpdate}
+          onError={setError}
+        />
+      )}
+
+      {rows && tab === 'add' && (
+        <QuickAddScreen
+          places={places}
+          rows={rows}
+          tags={tags}
+          onPlaceAdded={(p) =>
+            setPlaces((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]))
+          }
+          onTagCreated={addTag}
+          onPlaceTagsSet={setPlaceTagIds}
           onError={setError}
         />
       )}
