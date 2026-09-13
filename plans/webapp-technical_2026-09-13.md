@@ -4,11 +4,10 @@ Started 2026-09-13, immediately after owner ratified product spec v2 (`webapp_20
 
 ## Ground truth about the seed data (verified against files, 2026-09-13)
 
-- `meterials/Takeout/Saved/`: 43 CSVs, shape `Title,Note,URL,Tags,Comment`. **Parser traps:** some files open with a free-text description line before the header (e.g. "Kobi_s list of food to try.csv"); some contain fully blank rows (e.g. "Pizza places.csv" row 2); one entry ("Dandi and Avia Sep. 2026") is a directory, not a CSV. Tags/Comment empty in practice. Notes mixed Hebrew/English.
-- CSV `URL` embeds an FTID hex pair: regex `!1s(0x[0-9a-f]+:0x[0-9a-f]+)` (URL-decoded form) inside the `data=` segment. The second hex value, converted to decimal, is the CID.
-- `meterials/Takeout/Maps (your places)/Saved Places.json`: GeoJSON FeatureCollection, 180 features with `geometry.coordinates` (lng,lat), `properties.date`, `properties.google_maps_url` (`?cid=<decimal>`), `properties.location.{address,name,country_code}`.
-- **Cross-link key: CID** (decimal). CSV hex → decimal CID joins to Saved Places CID.
-- **FTID/CID are NOT API place IDs.** Places API (New) wants `ChIJ…` ids. Resolution: one-time Text Search (`places:searchText`, Pro tier) per kept place with `textQuery = title` + `locationBias` (NYC bounds, or exact coords when the CID matched Saved Places). Store the returned `ChIJ…` id; surface Google's returned name next to the CSV title in triage so the owner catches bad matches. ~250 calls, within the 5,000/mo Pro free tier.
+- **The 43 CSVs in `meterials/Takeout/Saved/` are the ONLY seed source.** Owner deleted the rest of the Takeout export (incl. `Saved Places.json`) on 2026-09-13: the saved lists are the actual maps he wants; the 180 default-saved places are out.
+- CSV shape: `Title,Note,URL,Tags,Comment`. **Parser traps:** some files open with a free-text description line before the header (e.g. "Kobi_s list of food to try.csv"); some contain fully blank rows (e.g. "Pizza places.csv" row 2); one entry ("Dandi and Avia Sep. 2026") is a directory, not a CSV. Tags/Comment empty in practice. Notes mixed Hebrew/English.
+- CSV `URL` embeds an FTID hex pair: regex `!1s(0x[0-9a-f]+:0x[0-9a-f]+)` (URL-decoded form) inside the `data=` segment. The second hex value, converted to decimal, is the CID. **Cross-list dedup key: CID.** No coordinates anywhere in the seed data — coordinates come only from enrichment.
+- **FTID/CID are NOT API place IDs.** Places API (New) wants `ChIJ…` ids. Resolution: one-time Text Search (`places:searchText`, Pro tier) per kept place with `textQuery = title` + `locationBias` (NYC bounds). Store the returned `ChIJ…` id; surface Google's returned name next to the CSV title in triage so the owner catches bad matches. ~250 calls, within the 5,000/mo Pro free tier.
 
 ## Stack decisions (proposed — confirm at kickoff)
 
@@ -26,16 +25,13 @@ Started 2026-09-13, immediately after owner ratified product spec v2 (`webapp_20
 -- Staging: every Takeout row lands here verbatim; triage never edits source data
 create table import_rows (
   id            bigint generated always as identity primary key,
-  source_file   text not null,          -- e.g. 'Pizza places.csv' | 'Saved Places.json'
+  source_file   text not null,          -- e.g. 'Pizza places.csv'
   row_num       int,
   title         text,
   note          text,
   url           text,
-  ftid          text,                   -- '0x..:0x..' from CSV url, null for JSON rows
-  cid           numeric,                -- decimal; the cross-link key
-  lat double precision, lng double precision,   -- JSON rows only
-  address       text,                   -- JSON rows only
-  saved_at      timestamptz,            -- JSON rows only
+  ftid          text,                   -- '0x..:0x..' from CSV url
+  cid           numeric,                -- decimal; the cross-list dedup key
   triage_status text not null default 'pending'
                 check (triage_status in ('pending','kept','dropped')),
   place_id      uuid references places(id),   -- set when kept/merged
@@ -120,7 +116,7 @@ Each step lands as a commit on `webapp`; check off here as done.
 
 1. **[owner] Accounts** — Supabase project (free tier); Google Cloud project with **Places API (New)** enabled, card attached, and quota caps set to free-tier limits (Essentials 10K, Pro 5K, Enterprise 0 — deny Enterprise entirely).
 2. **Migration** — `app/supabase/migrations/0001_init.sql` with the schema + RLS above. Applied via Supabase SQL editor or CLI.
-3. **Import script** — `app/scripts/import_takeout.py`: walk `meterials/Takeout/Saved/*.csv` (skip preamble lines: first row not matching the header is a list description → store on `lists.name`? No — filename is the name; store description in a `lists.description` column), skip blank rows, extract FTID/CID; load `Saved Places.json`; insert into `import_rows` + `lists`. Report: rows per file, rows with/without CID, CID-join hit rate vs Saved Places. **No try/except around loads; raise on anomalies.**
+3. **Import script** — `app/scripts/import_takeout.py`: walk `meterials/Takeout/Saved/*.csv` (skip preamble lines: first row not matching the header is a list description → store on `lists.name`? No — filename is the name; store description in a `lists.description` column), skip blank rows, extract FTID/CID; insert into `import_rows` + `lists`. Report: rows per file, rows with/without CID, cross-list CID-duplicate count. **No try/except around loads; raise on anomalies.**
 4. **Admin app scaffold** — Vite React TS in `app/`, Supabase magic-link login gate, single `/admin` surface.
 5. **Triage screen A — Lists**: table of 43 lists with row counts and `default_action` toggle; "drop whole list" bulk-sets its pending rows (per-row override preserved: bulk actions only touch `pending` rows).
 6. **Triage screen B — Review queue**: pending rows grouped by CID (cross-list dupes shown together). Keyboard-first: keep/drop, status, cuisine, borough/neighborhood, rec_source (pre-split from note when a known pattern like "המלצה של…" appears — suggestion only), note edit. Keep → creates/merges `places` row (notes unioned, `place_lists` written), enrichment queued.
@@ -137,5 +133,6 @@ Each step lands as a commit on `webapp`; check off here as done.
 
 ## Log
 
-- 2026-09-13 — **Data loss flag:** `meterials/Takeout/Maps/` and `Maps (your places)/Saved Places.json` (180 places w/ lat/lng + CID) existed and were read at session start, then vanished from disk before the commit — not deleted by any command in this session; not in Trash; Spotlight and ~/Downloads find nothing. Commit `1e2a183` therefore contains only `Saved/` (43 CSV lists). Owner must restore the JSON (re-export Takeout or recover the original zip) before import-script work — it is the only coordinate/CID source for the 180 default-saved places. Import pipeline is unblocked for the CSV side regardless (FTIDs are in the CSVs; Text Search resolution never needed the JSON coords, they were a bias hint).
+- 2026-09-13 — **Resolved, owner decision:** the deletion below was the owner, on purpose — only `Saved/` (the 43 CSV lists, "the actual maps I want") is seed data; `Saved Places.json` and the 180 default-saved places are permanently out of scope. Plan updated to CSV-only: `import_rows` drops the JSON-only columns, dedup is CID-within-CSVs, Text Search uses NYC-bounds bias only.
+- 2026-09-13 — ~~Data loss flag~~ (superseded above): `meterials/Takeout/Maps/` and `Maps (your places)/Saved Places.json` (180 places w/ lat/lng + CID) existed and were read at session start, then vanished from disk before the commit — not deleted by any command in this session; not in Trash; Spotlight and ~/Downloads find nothing. Commit `1e2a183` therefore contains only `Saved/` (43 CSV lists). Owner must restore the JSON (re-export Takeout or recover the original zip) before import-script work — it is the only coordinate/CID source for the 180 default-saved places. Import pipeline is unblocked for the CSV side regardless (FTIDs are in the CSVs; Text Search resolution never needed the JSON coords, they were a bias hint).
 - 2026-09-13 — Plan created. Spec v2 ratified by owner the same session; owner also decided `meterials/` gets committed (chosen over gitignore, aware branch is local until pushed). Data-shape traps verified against real files (preamble lines, blank rows, one directory among the CSVs). FTID/CID ≠ API place ID finding recorded; Text Search resolution step added.
