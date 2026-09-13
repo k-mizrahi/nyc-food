@@ -71,6 +71,10 @@ export function ReviewScreen({
     () => [...new Set(places.map((p) => p.cuisine).filter((c): c is string => !!c))].sort(),
     [places],
   )
+  const recSources = useMemo(
+    () => [...new Set(places.map((p) => p.rec_source).filter((s): s is string => !!s))].sort(),
+    [places],
+  )
 
   const groups = useMemo(() => {
     const pending = rows.filter((r) => r.triage_status === 'pending')
@@ -335,9 +339,15 @@ export function ReviewScreen({
                 <label>
                   Rec. source
                   <input
+                    list="rec-source-options"
                     value={form.rec_source}
                     onChange={(e) => setField('rec_source', e.target.value)}
                   />
+                  <datalist id="rec-source-options">
+                    {recSources.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
                 </label>
                 <label className="wide">
                   Note (EN)
