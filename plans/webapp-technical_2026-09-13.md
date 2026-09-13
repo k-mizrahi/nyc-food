@@ -137,4 +137,5 @@ Each step lands as a commit on `webapp`; check off here as done.
 
 ## Log
 
+- 2026-09-13 — **Data loss flag:** `meterials/Takeout/Maps/` and `Maps (your places)/Saved Places.json` (180 places w/ lat/lng + CID) existed and were read at session start, then vanished from disk before the commit — not deleted by any command in this session; not in Trash; Spotlight and ~/Downloads find nothing. Commit `1e2a183` therefore contains only `Saved/` (43 CSV lists). Owner must restore the JSON (re-export Takeout or recover the original zip) before import-script work — it is the only coordinate/CID source for the 180 default-saved places. Import pipeline is unblocked for the CSV side regardless (FTIDs are in the CSVs; Text Search resolution never needed the JSON coords, they were a bias hint).
 - 2026-09-13 — Plan created. Spec v2 ratified by owner the same session; owner also decided `meterials/` gets committed (chosen over gitignore, aware branch is local until pushed). Data-shape traps verified against real files (preamble lines, blank rows, one directory among the CSVs). FTID/CID ≠ API place ID finding recorded; Text Search resolution step added.
