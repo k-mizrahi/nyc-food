@@ -1,37 +1,45 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
+import { fetchAll } from './lib/data'
+import type { ImportRow, List, PlaceLite } from './lib/types'
+import { ListsScreen } from './ListsScreen'
+import { ReviewScreen } from './ReviewScreen'
 
-// Smoke-test counts proving the owner JWT passes RLS on owner-only tables.
-// Replaced by the real triage screens in steps 5-6.
-type Counts = { lists: number; rows: number; pending: number }
+type Tab = 'overview' | 'lists' | 'review'
 
 export function Admin({ session }: { session: Session }) {
-  const [counts, setCounts] = useState<Counts | null>(null)
+  const [tab, setTab] = useState<Tab>('overview')
+  const [rows, setRows] = useState<ImportRow[] | null>(null)
+  const [lists, setLists] = useState<List[]>([])
+  const [places, setPlaces] = useState<PlaceLite[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
-    async function load() {
-      const [lists, rows, pending] = await Promise.all([
-        supabase.from('lists').select('*', { count: 'exact', head: true }),
-        supabase.from('import_rows').select('*', { count: 'exact', head: true }),
-        supabase
-          .from('import_rows')
-          .select('*', { count: 'exact', head: true })
-          .eq('triage_status', 'pending'),
-      ])
-      const failed = [lists, rows, pending].find((r) => r.error)
-      if (failed?.error) {
-        setError(failed.error.message)
-        return
-      }
-      setCounts({ lists: lists.count ?? 0, rows: rows.count ?? 0, pending: pending.count ?? 0 })
-    }
-    load()
+    fetchAll()
+      .then((data) => {
+        setRows(data.rows)
+        setLists(data.lists)
+        setPlaces(data.places)
+      })
+      .catch((e: Error) => setError(e.message))
   }, [])
 
+  function applyRowUpdates(updated: ImportRow[]) {
+    const byId = new Map(updated.map((r) => [r.id, r]))
+    setRows((prev) => (prev ? prev.map((r) => byId.get(r.id) ?? r) : prev))
+  }
+
+  function applyListUpdate(list: List) {
+    setLists((prev) => prev.map((l) => (l.id === list.id ? list : l)))
+  }
+
+  const pending = rows?.filter((r) => r.triage_status === 'pending').length ?? 0
+  const kept = rows?.filter((r) => r.triage_status === 'kept').length ?? 0
+  const dropped = rows?.filter((r) => r.triage_status === 'dropped').length ?? 0
+
   return (
-    <main className="shell">
+    <main className="shell wide-shell">
       <header className="topbar">
         <h1>NYC Food — Admin</h1>
         <div>
@@ -40,26 +48,67 @@ export function Admin({ session }: { session: Session }) {
         </div>
       </header>
 
-      {error && <p className="error">Query failed: {error}</p>}
-      {!error && !counts && <p>Loading…</p>}
-      {counts && (
+      <nav className="tabs">
+        {(['overview', 'lists', 'review'] as Tab[]).map((t) => (
+          <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+            {t}
+          </button>
+        ))}
+      </nav>
+
+      {error && (
+        <p className="error">
+          {error} <button onClick={() => setError('')}>dismiss</button>
+        </p>
+      )}
+      {!rows && !error && <p>Loading…</p>}
+
+      {rows && tab === 'overview' && (
         <section className="cards">
           <div className="card">
-            <div className="num">{counts.lists}</div>
+            <div className="num">{lists.length}</div>
             <div className="label">lists</div>
           </div>
           <div className="card">
-            <div className="num">{counts.rows}</div>
-            <div className="label">staged rows</div>
+            <div className="num">{pending}</div>
+            <div className="label">pending</div>
           </div>
           <div className="card">
-            <div className="num">{counts.pending}</div>
-            <div className="label">pending triage</div>
+            <div className="num">{kept}</div>
+            <div className="label">kept</div>
+          </div>
+          <div className="card">
+            <div className="num">{dropped}</div>
+            <div className="label">dropped</div>
+          </div>
+          <div className="card">
+            <div className="num">{places.length}</div>
+            <div className="label">places created</div>
           </div>
         </section>
       )}
 
-      <p className="hint">Triage screens land next (steps 5–6).</p>
+      {rows && tab === 'lists' && (
+        <ListsScreen
+          lists={lists}
+          rows={rows}
+          onRowsUpdated={applyRowUpdates}
+          onListUpdated={applyListUpdate}
+          onError={setError}
+        />
+      )}
+
+      {rows && tab === 'review' && (
+        <ReviewScreen
+          lists={lists}
+          rows={rows}
+          places={places}
+          onRowsUpdated={applyRowUpdates}
+          onPlaceAdded={(p) => setPlaces((prev) => [...prev, p])}
+          onPlaceRemoved={(id) => setPlaces((prev) => prev.filter((p) => p.id !== id))}
+          onError={setError}
+        />
+      )}
     </main>
   )
 }
