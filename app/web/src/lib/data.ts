@@ -285,23 +285,31 @@ export async function keepGroup(
   const base = slugify(form.name) || (cid ? `place-${cid}` : `place-row-${rows[0].id}`)
   const gmapsUrl = cid ? `https://maps.google.com/?cid=${cid}` : rows[0].url
 
-  if (cid) {
-    const { data: existing, error: exError } = await supabase
+  // Merge instead of insert when this is really an already-kept place: same
+  // CID, or — different CID but the same Google place (Maps sometimes holds
+  // several map entries for one real-world business; hit live in triage).
+  async function findExisting(column: 'cid' | 'google_place_id', value: string) {
+    const { data, error } = await supabase
       .from('places')
       .select(PLACE_SELECT)
-      .eq('cid', cid)
+      .eq(column, value)
       .maybeSingle()
-    if (exError) throw new Error(exError.message)
-    if (existing) {
-      const place = existing as unknown as Place
-      await linkLists(place.id, rows, listIdBySourceFile)
-      await addPlaceTags(place.id, form.tagIds)
-      const updatedRows = await updateRows(
-        rows.map((r) => r.id),
-        { triage_status: 'kept', place_id: place.id },
-      )
-      return { place, updatedRows, merged: true }
-    }
+    if (error) throw new Error(error.message)
+    return data as unknown as Place | null
+  }
+  let existing: Place | null = null
+  if (cid) existing = await findExisting('cid', cid)
+  if (!existing && resolved?.google_place_id) {
+    existing = await findExisting('google_place_id', resolved.google_place_id)
+  }
+  if (existing) {
+    await linkLists(existing.id, rows, listIdBySourceFile)
+    await addPlaceTags(existing.id, form.tagIds)
+    const updatedRows = await updateRows(
+      rows.map((r) => r.id),
+      { triage_status: 'kept', place_id: existing.id },
+    )
+    return { place: existing, updatedRows, merged: true }
   }
 
   const payload = {
@@ -355,7 +363,14 @@ export async function updatePlace(
     .eq('id', id)
     .select(PLACE_SELECT)
     .single()
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (error.code === '23505' && error.message.includes('places_google_place_id_key')) {
+      throw new Error(
+        'Another place in the catalog already has this Google ID — this is a duplicate of an existing entry. Find the other copy in the Places list and send one back to the queue.',
+      )
+    }
+    throw new Error(error.message)
+  }
   return data as unknown as Place
 }
 
