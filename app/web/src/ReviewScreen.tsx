@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createTag, dropRows, keepGroup, undoKeep, restoreRows } from './lib/data'
-import type { ImportRow, KeepForm, LastAction, List, Place, PlaceStatus, Tag } from './lib/types'
+import { createTag, dropRows, keepGroup, resolvePlace, undoKeep, restoreRows } from './lib/data'
+import type {
+  ImportRow,
+  KeepForm,
+  LastAction,
+  List,
+  Place,
+  PlaceStatus,
+  Resolved,
+  Tag,
+} from './lib/types'
 import { TagPicker } from './TagPicker'
 
 interface Props {
@@ -66,6 +75,9 @@ export function ReviewScreen({
   const [listFilter, setListFilter] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [form, setForm] = useState<KeepForm | null>(null)
+  const [resolved, setResolved] = useState<Resolved | null>(null)
+  const [noMatch, setNoMatch] = useState(false)
+  const [resolving, setResolving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [lastAction, setLastAction] = useState<LastAction | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -110,7 +122,35 @@ export function ReviewScreen({
   // Re-init the form whenever the selected group changes
   useEffect(() => {
     setForm(selected ? initialForm(selected) : null)
+    setResolved(null)
+    setNoMatch(false)
   }, [selected?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function doResolve() {
+    if (!form || resolving) return
+    setResolving(true)
+    setNoMatch(false)
+    try {
+      const match = await resolvePlace(form.name)
+      setResolved(match)
+      setNoMatch(match === null)
+      if (match) {
+        setForm((f) =>
+          f
+            ? {
+                ...f,
+                borough: match.borough ?? f.borough,
+                neighborhood: match.neighborhood ?? f.neighborhood,
+              }
+            : f,
+        )
+      }
+    } catch (e) {
+      onError((e as Error).message)
+    } finally {
+      setResolving(false)
+    }
+  }
 
   function move(delta: number) {
     if (groups.length === 0) return
@@ -131,7 +171,12 @@ export function ReviewScreen({
     busyRef.current = true
     setBusy(true)
     try {
-      const { place, updatedRows, merged } = await keepGroup(selected.rows, form, listIdByFile)
+      const { place, updatedRows, merged } = await keepGroup(
+        selected.rows,
+        form,
+        listIdByFile,
+        resolved,
+      )
       onPlaceAdded(place)
       onPlaceTagsSet(place.id, form.tagIds, merged ? 'union' : 'replace')
       onRowsUpdated(updatedRows)
@@ -321,6 +366,25 @@ export function ReviewScreen({
                     In NYC (uncheck to keep for future cities)
                   </span>
                 </label>
+                <div className="form-grid-cell wide">
+                  <div className="resolve-row">
+                    <button type="button" disabled={resolving || busy} onClick={doResolve}>
+                      {resolving ? 'Looking up…' : 'Auto-fill from Google'}
+                    </button>
+                    {resolved && (
+                      <span className="resolve-result">
+                        Google: <strong>{resolved.name}</strong>
+                        {resolved.address && <> — {resolved.address}</>}
+                      </span>
+                    )}
+                    {noMatch && <span className="resolve-result">No Google match found.</span>}
+                    {!resolved && !noMatch && !resolving && (
+                      <span className="resolve-hint">
+                        fills borough + neighborhood, saves coordinates
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="form-grid-cell wide">
                   <span className="field-label">Labels (bar, restaurant, food cart…)</span>
                   <TagPicker

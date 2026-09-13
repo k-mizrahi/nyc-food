@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createTag, syncPlaceTags, undoKeep, updatePlace } from './lib/data'
-import type { ImportRow, KeepForm, Place, PlaceStatus, PlaceTag, Tag } from './lib/types'
+import { createTag, resolvePlace, syncPlaceTags, undoKeep, updatePlace } from './lib/data'
+import type {
+  ImportRow,
+  KeepForm,
+  Place,
+  PlaceStatus,
+  PlaceTag,
+  Resolved,
+  Tag,
+} from './lib/types'
 import { TagPicker } from './TagPicker'
 
 interface Props {
@@ -48,6 +56,9 @@ export function PlacesScreen({
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<KeepForm | null>(null)
+  const [resolved, setResolved] = useState<Resolved | null>(null)
+  const [noMatch, setNoMatch] = useState(false)
+  const [resolving, setResolving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
 
@@ -79,7 +90,35 @@ export function PlacesScreen({
   useEffect(() => {
     setForm(selected ? formFromPlace(selected, selectedTagIds) : null)
     setSavedFlash(false)
+    setResolved(null)
+    setNoMatch(false)
   }, [selected?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function doResolve() {
+    if (!form || resolving) return
+    setResolving(true)
+    setNoMatch(false)
+    try {
+      const match = await resolvePlace(form.name)
+      setResolved(match)
+      setNoMatch(match === null)
+      if (match) {
+        setForm((f) =>
+          f
+            ? {
+                ...f,
+                borough: match.borough ?? f.borough,
+                neighborhood: match.neighborhood ?? f.neighborhood,
+              }
+            : f,
+        )
+      }
+    } catch (e) {
+      onError((e as Error).message)
+    } finally {
+      setResolving(false)
+    }
+  }
 
   function setField<K extends keyof KeepForm>(key: K, value: KeepForm[K]) {
     setForm((f) => (f ? { ...f, [key]: value } : f))
@@ -90,7 +129,7 @@ export function PlacesScreen({
     if (!selected || !form || busy) return
     setBusy(true)
     try {
-      const updated = await updatePlace(selected.id, form)
+      const updated = await updatePlace(selected.id, form, resolved)
       await syncPlaceTags(selected.id, form.tagIds, selectedTagIds)
       onPlaceUpdated(updated)
       onPlaceTagsSet(selected.id, form.tagIds, 'replace')
@@ -193,6 +232,23 @@ export function PlacesScreen({
                     In NYC (uncheck to keep for future cities)
                   </span>
                 </label>
+                <div className="form-grid-cell wide">
+                  <div className="resolve-row">
+                    <button type="button" disabled={resolving || busy} onClick={doResolve}>
+                      {resolving ? 'Looking up…' : 'Auto-fill from Google'}
+                    </button>
+                    {resolved && (
+                      <span className="resolve-result">
+                        Google: <strong>{resolved.name}</strong>
+                        {resolved.address && <> — {resolved.address}</>}
+                      </span>
+                    )}
+                    {noMatch && <span className="resolve-result">No Google match found.</span>}
+                    {!resolved && !noMatch && !resolving && selected.google_place_id && (
+                      <span className="resolve-hint">already resolved: {selected.address}</span>
+                    )}
+                  </div>
+                </div>
                 <div className="form-grid-cell wide">
                   <span className="field-label">Labels (bar, restaurant, food cart…)</span>
                   <TagPicker

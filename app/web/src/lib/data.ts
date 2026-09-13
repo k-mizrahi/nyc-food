@@ -6,12 +6,13 @@ import type {
   List,
   Place,
   PlaceTag,
+  Resolved,
   Tag,
 } from './types'
 
 const ROW_SELECT = 'id,source_file,row_num,title,note,url,cid::text,triage_status,place_id'
 const PLACE_SELECT =
-  'id,slug,name,status,in_nyc,cuisine,borough,neighborhood,rec_source,note_en,note_he,cid::text,gmaps_url'
+  'id,slug,name,status,in_nyc,cuisine,borough,neighborhood,rec_source,note_en,note_he,cid::text,gmaps_url,google_place_id,address,lat,lng'
 
 // Supabase caps every request at 1,000 rows server-side regardless of the
 // requested range, so all rows are fetched in pages until the count is met.
@@ -68,6 +69,18 @@ export async function fetchAll(): Promise<{
     tags: tagsRes.data as Tag[],
     placeTags,
   }
+}
+
+// Calls the dev-server proxy (vite.config.ts), which holds the Google key.
+export async function resolvePlace(query: string): Promise<Resolved | null> {
+  const res = await fetch('/api/resolve-place', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  })
+  const payload = await res.json()
+  if (!res.ok) throw new Error(payload.error ?? `resolve failed (${res.status})`)
+  return payload.match as Resolved | null
 }
 
 // Slug keeps letters of any script (Hebrew labels are fine); a 23505 means the
@@ -197,10 +210,22 @@ async function linkLists(
 // If a place with this CID already exists (interrupted undo, re-import), the
 // rows merge into it and its fields are left untouched.
 // Slug collisions retry with a numeric suffix; any other error surfaces raw.
+function resolvedPatch(resolved: Resolved | null | undefined) {
+  if (!resolved) return {}
+  return {
+    google_place_id: resolved.google_place_id,
+    address: resolved.address,
+    lat: resolved.lat,
+    lng: resolved.lng,
+    refreshed_at: new Date().toISOString(),
+  }
+}
+
 export async function keepGroup(
   rows: ImportRow[],
   form: KeepForm,
   listIdBySourceFile: Map<string, number>,
+  resolved?: Resolved | null,
 ): Promise<{ place: Place; updatedRows: ImportRow[]; merged: boolean }> {
   const cid = rows[0].cid
   const base = slugify(form.name) || (cid ? `place-${cid}` : `place-row-${rows[0].id}`)
@@ -237,6 +262,7 @@ export async function keepGroup(
     note_he: emptyToNull(form.note_he),
     cid,
     gmaps_url: gmapsUrl,
+    ...resolvedPatch(resolved),
   }
   if (payload.name === '') throw new Error('name is required')
 
@@ -266,8 +292,13 @@ export async function keepGroup(
   return { place, updatedRows, merged: false }
 }
 
-export async function updatePlace(id: string, form: KeepForm): Promise<Place> {
+export async function updatePlace(
+  id: string,
+  form: KeepForm,
+  resolved?: Resolved | null,
+): Promise<Place> {
   const patch = {
+    ...resolvedPatch(resolved),
     name: form.name.trim(),
     status: form.status,
     in_nyc: form.in_nyc,

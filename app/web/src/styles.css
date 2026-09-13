@@ -320,6 +320,22 @@ kbd {
   max-width: 240px;
 }
 
+.resolve-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.resolve-result {
+  font-size: 0.85rem;
+}
+
+.resolve-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .saved-flash {
   color: var(--muted);
   font-size: 0.85rem;

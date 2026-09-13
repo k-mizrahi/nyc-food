@@ -38,6 +38,21 @@ export interface Place {
   note_he: string | null
   cid: string | null
   gmaps_url: string | null
+  google_place_id: string | null
+  address: string | null
+  lat: number | null
+  lng: number | null
+}
+
+// One Google Places searchText match, produced by the dev-server proxy
+export interface Resolved {
+  google_place_id: string
+  name: string | null
+  address: string | null
+  lat: number | null
+  lng: number | null
+  borough: string | null
+  neighborhood: string | null
 }
 
 export interface Tag {
