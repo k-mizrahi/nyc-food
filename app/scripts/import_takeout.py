@@ -72,7 +72,8 @@ def load_env():
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             env[k.strip()] = v.strip()
-    url = env["SUPABASE_URL"].rstrip("/")
+    # tolerate the dashboard's copy-paste form that appends /rest/v1
+    url = re.sub(r"/rest/v1/?$", "", env["SUPABASE_URL"].rstrip("/"))
     key = env["SUPABASE_SERVICE_ROLE_KEY"]
     if not url or not key:
         raise ValueError(".env is missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
