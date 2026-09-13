@@ -10,8 +10,12 @@ interface Props {
   idPrefix: string
 }
 
-// Multi-select labels: chips + a text input suggesting existing tags.
-// Typing a label that doesn't exist yet creates the tag on the fly.
+// Starter labels shown as one-tap buttons until a real tag with that name
+// exists; clicking one creates the tag. After that they're ordinary tags.
+const SUGGESTED = ['bar', 'sit-down restaurant', 'take-out']
+
+// Multi-select labels: chips for selected, one-tap buttons for every other
+// existing tag, plus a text input for brand-new labels (created on the fly).
 export function TagPicker({ allTags, selectedIds, onChange, onCreate, idPrefix }: Props) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -20,6 +24,9 @@ export function TagPicker({ allTags, selectedIds, onChange, onCreate, idPrefix }
     .map((id) => allTags.find((t) => t.id === id))
     .filter((t): t is Tag => !!t)
   const available = allTags.filter((t) => !selectedIds.includes(t.id))
+  const suggested = SUGGESTED.filter(
+    (s) => !allTags.some((t) => t.label_en.toLowerCase() === s.toLowerCase()),
+  )
 
   async function add(label: string) {
     const trimmed = label.trim()
@@ -63,10 +70,36 @@ export function TagPicker({ allTags, selectedIds, onChange, onCreate, idPrefix }
           </span>
         ))}
       </div>
+      {(available.length > 0 || suggested.length > 0) && (
+        <div className="tag-options">
+          {available.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="tag-option"
+              disabled={busy}
+              onClick={() => onChange([...selectedIds, t.id])}
+            >
+              {t.label_en}
+            </button>
+          ))}
+          {suggested.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="tag-option"
+              disabled={busy}
+              onClick={() => add(s)}
+            >
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="tag-input-row">
         <input
           list={`${idPrefix}-tag-options`}
-          placeholder="add label…"
+          placeholder="new label…"
           value={input}
           disabled={busy}
           onChange={(e) => setInput(e.target.value)}
