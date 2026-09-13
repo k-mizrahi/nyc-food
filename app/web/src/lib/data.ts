@@ -4,10 +4,12 @@ import type {
   ImportRow,
   KeepForm,
   List,
-  PlaceLite,
+  Place,
 } from './types'
 
 const ROW_SELECT = 'id,source_file,row_num,title,note,url,cid::text,triage_status,place_id'
+const PLACE_SELECT =
+  'id,slug,name,status,in_nyc,cuisine,borough,neighborhood,rec_source,note_en,note_he,cid::text,gmaps_url'
 
 // Supabase caps every request at 1,000 rows server-side regardless of the
 // requested range, so all rows are fetched in pages until the count is met.
@@ -39,12 +41,12 @@ async function fetchAllImportRows(): Promise<ImportRow[]> {
 export async function fetchAll(): Promise<{
   rows: ImportRow[]
   lists: List[]
-  places: PlaceLite[]
+  places: Place[]
 }> {
   const [rows, listsRes, placesRes] = await Promise.all([
     fetchAllImportRows(),
     supabase.from('lists').select('*').order('name'),
-    supabase.from('places').select('id,cid::text,name,cuisine,borough'),
+    supabase.from('places').select(PLACE_SELECT),
   ])
   for (const res of [listsRes, placesRes]) {
     if (res.error) throw new Error(res.error.message)
@@ -52,7 +54,7 @@ export async function fetchAll(): Promise<{
   return {
     rows,
     lists: listsRes.data as List[],
-    places: placesRes.data as unknown as PlaceLite[],
+    places: placesRes.data as unknown as Place[],
   }
 }
 
@@ -112,7 +114,7 @@ export async function keepGroup(
   rows: ImportRow[],
   form: KeepForm,
   listIdBySourceFile: Map<string, number>,
-): Promise<{ place: PlaceLite; updatedRows: ImportRow[] }> {
+): Promise<{ place: Place; updatedRows: ImportRow[] }> {
   const cid = rows[0].cid
   const base = slugify(form.name) || (cid ? `place-${cid}` : `place-row-${rows[0].id}`)
   const gmapsUrl = cid ? `https://maps.google.com/?cid=${cid}` : rows[0].url
@@ -132,16 +134,16 @@ export async function keepGroup(
   }
   if (payload.name === '') throw new Error('name is required')
 
-  let place: PlaceLite | null = null
+  let place: Place | null = null
   for (let attempt = 0; attempt < 5; attempt++) {
     const slug = attempt === 0 ? base : `${base}-${attempt + 1}`
     const { data, error } = await supabase
       .from('places')
       .insert({ ...payload, slug })
-      .select('id,cid::text,name,cuisine,borough')
+      .select(PLACE_SELECT)
       .single()
     if (!error) {
-      place = data as unknown as PlaceLite
+      place = data as unknown as Place
       break
     }
     const slugCollision = error.code === '23505' && error.message.includes('places_slug_key')
@@ -164,6 +166,29 @@ export async function keepGroup(
     { triage_status: 'kept', place_id: place.id },
   )
   return { place, updatedRows }
+}
+
+export async function updatePlace(id: string, form: KeepForm): Promise<Place> {
+  const patch = {
+    name: form.name.trim(),
+    status: form.status,
+    in_nyc: form.in_nyc,
+    cuisine: emptyToNull(form.cuisine),
+    borough: emptyToNull(form.borough),
+    neighborhood: emptyToNull(form.neighborhood),
+    rec_source: emptyToNull(form.rec_source),
+    note_en: emptyToNull(form.note_en),
+    note_he: emptyToNull(form.note_he),
+  }
+  if (patch.name === '') throw new Error('name is required')
+  const { data, error } = await supabase
+    .from('places')
+    .update(patch)
+    .eq('id', id)
+    .select(PLACE_SELECT)
+    .single()
+  if (error) throw new Error(error.message)
+  return data as unknown as Place
 }
 
 // Undo a keep: delete the place (place_lists cascades), reset rows to pending.

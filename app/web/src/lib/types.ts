@@ -24,12 +24,20 @@ export interface List {
   default_action: DefaultAction
 }
 
-export interface PlaceLite {
+export interface Place {
   id: string
-  cid: string | null
+  slug: string
   name: string
+  status: PlaceStatus
+  in_nyc: boolean
   cuisine: string | null
   borough: string | null
+  neighborhood: string | null
+  rec_source: string | null
+  note_en: string | null
+  note_he: string | null
+  cid: string | null
+  gmaps_url: string | null
 }
 
 export interface KeepForm {

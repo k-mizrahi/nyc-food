@@ -242,6 +242,32 @@ kbd {
   font-weight: 700;
 }
 
+.q-flag {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 0 0.3em;
+}
+
+.saved-flash {
+  color: var(--muted);
+  font-size: 0.85rem;
+  align-self: center;
+}
+
+.review-toolbar input[type='search'] {
+  font: inherit;
+  color: var(--fg);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  min-width: 240px;
+}
+
 .q-lists {
   color: var(--muted);
   font-size: 0.75rem;

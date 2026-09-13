@@ -2,17 +2,18 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { fetchAll } from './lib/data'
-import type { ImportRow, List, PlaceLite } from './lib/types'
+import type { ImportRow, List, Place } from './lib/types'
 import { ListsScreen } from './ListsScreen'
 import { ReviewScreen } from './ReviewScreen'
+import { PlacesScreen } from './PlacesScreen'
 
-type Tab = 'overview' | 'lists' | 'review'
+type Tab = 'overview' | 'lists' | 'review' | 'places'
 
 export function Admin({ session }: { session: Session }) {
   const [tab, setTab] = useState<Tab>('overview')
   const [rows, setRows] = useState<ImportRow[] | null>(null)
   const [lists, setLists] = useState<List[]>([])
-  const [places, setPlaces] = useState<PlaceLite[]>([])
+  const [places, setPlaces] = useState<Place[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function Admin({ session }: { session: Session }) {
       </header>
 
       <nav className="tabs">
-        {(['overview', 'lists', 'review'] as Tab[]).map((t) => (
+        {(['overview', 'lists', 'review', 'places'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
             {t}
           </button>
@@ -94,6 +95,17 @@ export function Admin({ session }: { session: Session }) {
           rows={rows}
           onRowsUpdated={applyRowUpdates}
           onListUpdated={applyListUpdate}
+          onError={setError}
+        />
+      )}
+
+      {rows && tab === 'places' && (
+        <PlacesScreen
+          places={places}
+          rows={rows}
+          onPlaceUpdated={(p) => setPlaces((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
+          onPlaceRemoved={(id) => setPlaces((prev) => prev.filter((p) => p.id !== id))}
+          onRowsUpdated={applyRowUpdates}
           onError={setError}
         />
       )}

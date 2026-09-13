@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { dropRows, keepGroup, undoKeep, restoreRows } from './lib/data'
-import type { ImportRow, KeepForm, LastAction, List, PlaceLite, PlaceStatus } from './lib/types'
+import type { ImportRow, KeepForm, LastAction, List, Place, PlaceStatus } from './lib/types'
 
 interface Props {
   lists: List[]
   rows: ImportRow[]
-  places: PlaceLite[]
+  places: Place[]
   onRowsUpdated: (updated: ImportRow[]) => void
-  onPlaceAdded: (place: PlaceLite) => void
+  onPlaceAdded: (place: Place) => void
   onPlaceRemoved: (placeId: string) => void
   onError: (message: string) => void
 }
