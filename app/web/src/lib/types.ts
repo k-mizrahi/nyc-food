@@ -35,6 +35,7 @@ export interface PlaceLite {
 export interface KeepForm {
   name: string
   status: PlaceStatus
+  in_nyc: boolean
   cuisine: string
   borough: string
   neighborhood: string

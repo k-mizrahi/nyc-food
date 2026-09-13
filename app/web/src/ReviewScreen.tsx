@@ -36,6 +36,7 @@ function initialForm(group: Group): KeepForm {
   return {
     name,
     status: 'want_to_try',
+    in_nyc: true,
     cuisine: '',
     borough: '',
     neighborhood: '',
@@ -287,6 +288,16 @@ export function ReviewScreen({
                     <option value="closed">closed</option>
                     <option value="demoted">demoted</option>
                   </select>
+                </label>
+                <label className="check-label">
+                  <span>
+                    <input
+                      type="checkbox"
+                      checked={form.in_nyc}
+                      onChange={(e) => setField('in_nyc', e.target.checked)}
+                    />{' '}
+                    In NYC (uncheck to keep for future cities)
+                  </span>
                 </label>
                 <label>
                   Cuisine

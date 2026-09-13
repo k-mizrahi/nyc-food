@@ -120,6 +120,7 @@ export async function keepGroup(
   const payload = {
     name: form.name.trim(),
     status: form.status,
+    in_nyc: form.in_nyc,
     cuisine: emptyToNull(form.cuisine),
     borough: emptyToNull(form.borough),
     neighborhood: emptyToNull(form.neighborhood),

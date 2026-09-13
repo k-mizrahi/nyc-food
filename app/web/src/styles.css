@@ -287,6 +287,14 @@ kbd {
   grid-column: 1 / -1;
 }
 
+.form-grid label.check-label {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+
 .form-grid input,
 .form-grid textarea,
 .form-grid select {
