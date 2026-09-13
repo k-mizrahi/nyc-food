@@ -1,0 +1,31 @@
+NYC Food — Admin UI access
+==========================
+
+URL: https://k-mizrahi.github.io/nyc-food/admin/
+(works on any device; on iPhone: open in Safari -> Share -> Add to Home Screen)
+
+Log in
+------
+1. Email is pre-filled (mizrahi.kobi@gmail.com) -> tap "Send magic link".
+2. Check your inbox. Either open the link in the SAME browser,
+   or type the 6-digit code from the email into the app.
+Only your email can see any data — the login is the security.
+
+The tabs
+--------
+- overview : counters (lists / pending / kept / dropped / places)
+- add      : QUICK ADD — paste any Google Maps link (or type a name),
+             it auto-fills, you adjust, "Add to catalog".
+             Phone flow: Google Maps -> Share -> Copy Link -> paste here.
+- lists    : your 42 imported lists; bulk drop/restore per list
+- review   : triage queue. Keyboard: up/down move, k keep, d drop,
+             u undo, e edit. "Auto-fill from Google" fills
+             borough/neighborhood + saves coordinates.
+- places   : everything kept; click to edit, "Send back to queue" to un-keep.
+
+Running it locally instead (optional)
+-------------------------------------
+Terminal: cd ~/projects/nyc_food/app/web && npm run dev
+Then open http://localhost:5173
+
+After code changes, redeploy with: app/scripts/deploy_admin.sh
