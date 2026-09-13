@@ -1,23 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
-import { undoKeep, updatePlace } from './lib/data'
-import type { ImportRow, KeepForm, Place, PlaceStatus } from './lib/types'
+import { createTag, syncPlaceTags, undoKeep, updatePlace } from './lib/data'
+import type { ImportRow, KeepForm, Place, PlaceStatus, PlaceTag, Tag } from './lib/types'
+import { TagPicker } from './TagPicker'
 
 interface Props {
   places: Place[]
   rows: ImportRow[]
+  tags: Tag[]
+  placeTags: PlaceTag[]
   onPlaceUpdated: (place: Place) => void
   onPlaceRemoved: (placeId: string) => void
   onRowsUpdated: (updated: ImportRow[]) => void
+  onTagCreated: (tag: Tag) => void
+  onPlaceTagsSet: (placeId: string, tagIds: number[], mode: 'union' | 'replace') => void
   onError: (message: string) => void
 }
 
 const BOROUGHS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island']
 
-function formFromPlace(p: Place): KeepForm {
+function formFromPlace(p: Place, tagIds: number[]): KeepForm {
   return {
     name: p.name,
     status: p.status,
     in_nyc: p.in_nyc,
+    tagIds,
     cuisine: p.cuisine ?? '',
     borough: p.borough ?? '',
     neighborhood: p.neighborhood ?? '',
@@ -30,9 +36,13 @@ function formFromPlace(p: Place): KeepForm {
 export function PlacesScreen({
   places,
   rows,
+  tags,
+  placeTags,
   onPlaceUpdated,
   onPlaceRemoved,
   onRowsUpdated,
+  onTagCreated,
+  onPlaceTagsSet,
   onError,
 }: Props) {
   const [search, setSearch] = useState('')
@@ -61,8 +71,13 @@ export function PlacesScreen({
     [places],
   )
 
+  const selectedTagIds = useMemo(
+    () => (selected ? placeTags.filter((pt) => pt.place_id === selected.id).map((pt) => pt.tag_id) : []),
+    [placeTags, selected?.id], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
   useEffect(() => {
-    setForm(selected ? formFromPlace(selected) : null)
+    setForm(selected ? formFromPlace(selected, selectedTagIds) : null)
     setSavedFlash(false)
   }, [selected?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -75,7 +90,10 @@ export function PlacesScreen({
     if (!selected || !form || busy) return
     setBusy(true)
     try {
-      onPlaceUpdated(await updatePlace(selected.id, form))
+      const updated = await updatePlace(selected.id, form)
+      await syncPlaceTags(selected.id, form.tagIds, selectedTagIds)
+      onPlaceUpdated(updated)
+      onPlaceTagsSet(selected.id, form.tagIds, 'replace')
       setSavedFlash(true)
     } catch (e) {
       onError((e as Error).message)
@@ -175,6 +193,20 @@ export function PlacesScreen({
                     In NYC (uncheck to keep for future cities)
                   </span>
                 </label>
+                <div className="form-grid-cell wide">
+                  <span className="field-label">Labels (bar, restaurant, food cart…)</span>
+                  <TagPicker
+                    idPrefix="places"
+                    allTags={tags}
+                    selectedIds={form.tagIds}
+                    onChange={(ids) => setField('tagIds', ids)}
+                    onCreate={async (label) => {
+                      const tag = await createTag(label)
+                      onTagCreated(tag)
+                      return tag
+                    }}
+                  />
+                </div>
                 <label>
                   Cuisine
                   <input

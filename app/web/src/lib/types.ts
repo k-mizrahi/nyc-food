@@ -40,10 +40,23 @@ export interface Place {
   gmaps_url: string | null
 }
 
+export interface Tag {
+  id: number
+  slug: string
+  label_en: string
+  label_he: string | null
+}
+
+export interface PlaceTag {
+  place_id: string
+  tag_id: number
+}
+
 export interface KeepForm {
   name: string
   status: PlaceStatus
   in_nyc: boolean
+  tagIds: number[]
   cuisine: string
   borough: string
   neighborhood: string

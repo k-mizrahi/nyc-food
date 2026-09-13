@@ -252,6 +252,74 @@ kbd {
   padding: 0 0.3em;
 }
 
+.form-grid-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-grid-cell.wide {
+  grid-column: 1 / -1;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tag-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tag-chips:empty {
+  display: none;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.tag-chip button {
+  border: none;
+  background: none;
+  color: inherit;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tag-input-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tag-input-row input {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  flex: 1;
+  max-width: 240px;
+}
+
 .saved-flash {
   color: var(--muted);
   font-size: 0.85rem;

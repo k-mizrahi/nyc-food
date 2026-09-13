@@ -5,6 +5,8 @@ import type {
   KeepForm,
   List,
   Place,
+  PlaceTag,
+  Tag,
 } from './types'
 
 const ROW_SELECT = 'id,source_file,row_num,title,note,url,cid::text,triage_status,place_id'
@@ -42,20 +44,84 @@ export async function fetchAll(): Promise<{
   rows: ImportRow[]
   lists: List[]
   places: Place[]
+  tags: Tag[]
+  placeTags: PlaceTag[]
 }> {
-  const [rows, listsRes, placesRes] = await Promise.all([
+  const [rows, listsRes, placesRes, tagsRes, placeTagsRes] = await Promise.all([
     fetchAllImportRows(),
     supabase.from('lists').select('*').order('name'),
     supabase.from('places').select(PLACE_SELECT),
+    supabase.from('tags').select('*').order('label_en'),
+    supabase.from('place_tags').select('place_id,tag_id', { count: 'exact' }),
   ])
-  for (const res of [listsRes, placesRes]) {
+  for (const res of [listsRes, placesRes, tagsRes, placeTagsRes]) {
     if (res.error) throw new Error(res.error.message)
+  }
+  const placeTags = placeTagsRes.data as PlaceTag[]
+  if (placeTagsRes.count !== null && placeTags.length !== placeTagsRes.count) {
+    throw new Error(`fetched ${placeTags.length} of ${placeTagsRes.count} place_tags`)
   }
   return {
     rows,
     lists: listsRes.data as List[],
     places: placesRes.data as unknown as Place[],
+    tags: tagsRes.data as Tag[],
+    placeTags,
   }
+}
+
+// Slug keeps letters of any script (Hebrew labels are fine); a 23505 means the
+// tag already exists under this slug — return it instead of failing.
+export async function createTag(label: string): Promise<Tag> {
+  const trimmed = label.trim()
+  const slug = trimmed
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+  if (!slug) throw new Error(`cannot derive a slug from '${label}'`)
+  const { data, error } = await supabase
+    .from('tags')
+    .insert({ slug, label_en: trimmed })
+    .select('*')
+    .single()
+  if (!error) return data as Tag
+  if (error.code !== '23505') throw new Error(error.message)
+  const { data: existing, error: exError } = await supabase
+    .from('tags')
+    .select('*')
+    .eq('slug', slug)
+    .single()
+  if (exError) throw new Error(exError.message)
+  return existing as Tag
+}
+
+async function addPlaceTags(placeId: string, tagIds: number[]): Promise<void> {
+  if (tagIds.length === 0) return
+  const { error } = await supabase
+    .from('place_tags')
+    .upsert(
+      tagIds.map((tag_id) => ({ place_id: placeId, tag_id, source: 'owner' })),
+      { onConflict: 'place_id,tag_id', ignoreDuplicates: true },
+    )
+  if (error) throw new Error(error.message)
+}
+
+export async function syncPlaceTags(
+  placeId: string,
+  nextIds: number[],
+  prevIds: number[],
+): Promise<void> {
+  const next = new Set(nextIds)
+  const removed = prevIds.filter((id) => !next.has(id))
+  if (removed.length > 0) {
+    const { error } = await supabase
+      .from('place_tags')
+      .delete()
+      .eq('place_id', placeId)
+      .in('tag_id', removed)
+    if (error) throw new Error(error.message)
+  }
+  await addPlaceTags(placeId, nextIds)
 }
 
 export async function setDefaultAction(listId: number, action: DefaultAction): Promise<void> {
@@ -150,6 +216,7 @@ export async function keepGroup(
     if (existing) {
       const place = existing as unknown as Place
       await linkLists(place.id, rows, listIdBySourceFile)
+      await addPlaceTags(place.id, form.tagIds)
       const updatedRows = await updateRows(
         rows.map((r) => r.id),
         { triage_status: 'kept', place_id: place.id },
@@ -191,6 +258,7 @@ export async function keepGroup(
   if (!place) throw new Error(`no free slug for '${base}' after 5 attempts`)
 
   await linkLists(place.id, rows, listIdBySourceFile)
+  await addPlaceTags(place.id, form.tagIds)
   const updatedRows = await updateRows(
     rows.map((r) => r.id),
     { triage_status: 'kept', place_id: place.id },

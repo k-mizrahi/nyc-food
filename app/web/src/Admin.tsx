@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { fetchAll } from './lib/data'
-import type { ImportRow, List, Place } from './lib/types'
+import type { ImportRow, List, Place, PlaceTag, Tag } from './lib/types'
 import { ListsScreen } from './ListsScreen'
 import { ReviewScreen } from './ReviewScreen'
 import { PlacesScreen } from './PlacesScreen'
@@ -14,6 +14,8 @@ export function Admin({ session }: { session: Session }) {
   const [rows, setRows] = useState<ImportRow[] | null>(null)
   const [lists, setLists] = useState<List[]>([])
   const [places, setPlaces] = useState<Place[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
+  const [placeTags, setPlaceTags] = useState<PlaceTag[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -22,9 +24,29 @@ export function Admin({ session }: { session: Session }) {
         setRows(data.rows)
         setLists(data.lists)
         setPlaces(data.places)
+        setTags(data.tags)
+        setPlaceTags(data.placeTags)
       })
       .catch((e: Error) => setError(e.message))
   }, [])
+
+  function removePlace(id: string) {
+    setPlaces((prev) => prev.filter((p) => p.id !== id))
+    setPlaceTags((prev) => prev.filter((pt) => pt.place_id !== id))
+  }
+
+  function setPlaceTagIds(placeId: string, tagIds: number[], mode: 'union' | 'replace') {
+    setPlaceTags((prev) => {
+      const others = prev.filter((pt) => pt.place_id !== placeId)
+      const existing = prev.filter((pt) => pt.place_id === placeId).map((pt) => pt.tag_id)
+      const ids = mode === 'union' ? [...new Set([...existing, ...tagIds])] : tagIds
+      return [...others, ...ids.map((tag_id) => ({ place_id: placeId, tag_id }))]
+    })
+  }
+
+  function addTag(tag: Tag) {
+    setTags((prev) => (prev.some((t) => t.id === tag.id) ? prev : [...prev, tag]))
+  }
 
   function applyRowUpdates(updated: ImportRow[]) {
     const byId = new Map(updated.map((r) => [r.id, r]))
@@ -103,9 +125,13 @@ export function Admin({ session }: { session: Session }) {
         <PlacesScreen
           places={places}
           rows={rows}
+          tags={tags}
+          placeTags={placeTags}
           onPlaceUpdated={(p) => setPlaces((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
-          onPlaceRemoved={(id) => setPlaces((prev) => prev.filter((p) => p.id !== id))}
+          onPlaceRemoved={removePlace}
           onRowsUpdated={applyRowUpdates}
+          onTagCreated={addTag}
+          onPlaceTagsSet={setPlaceTagIds}
           onError={setError}
         />
       )}
@@ -115,13 +141,16 @@ export function Admin({ session }: { session: Session }) {
           lists={lists}
           rows={rows}
           places={places}
+          tags={tags}
           onRowsUpdated={applyRowUpdates}
           onPlaceAdded={(p) =>
             setPlaces((prev) =>
               prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p],
             )
           }
-          onPlaceRemoved={(id) => setPlaces((prev) => prev.filter((p) => p.id !== id))}
+          onPlaceRemoved={removePlace}
+          onTagCreated={addTag}
+          onPlaceTagsSet={setPlaceTagIds}
           onError={setError}
         />
       )}

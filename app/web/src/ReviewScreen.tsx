@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { dropRows, keepGroup, undoKeep, restoreRows } from './lib/data'
-import type { ImportRow, KeepForm, LastAction, List, Place, PlaceStatus } from './lib/types'
+import { createTag, dropRows, keepGroup, undoKeep, restoreRows } from './lib/data'
+import type { ImportRow, KeepForm, LastAction, List, Place, PlaceStatus, Tag } from './lib/types'
+import { TagPicker } from './TagPicker'
 
 interface Props {
   lists: List[]
   rows: ImportRow[]
   places: Place[]
+  tags: Tag[]
   onRowsUpdated: (updated: ImportRow[]) => void
   onPlaceAdded: (place: Place) => void
   onPlaceRemoved: (placeId: string) => void
+  onTagCreated: (tag: Tag) => void
+  onPlaceTagsSet: (placeId: string, tagIds: number[], mode: 'union' | 'replace') => void
   onError: (message: string) => void
 }
 
@@ -37,6 +41,7 @@ function initialForm(group: Group): KeepForm {
     name,
     status: 'want_to_try',
     in_nyc: true,
+    tagIds: [],
     cuisine: '',
     borough: '',
     neighborhood: '',
@@ -50,9 +55,12 @@ export function ReviewScreen({
   lists,
   rows,
   places,
+  tags,
   onRowsUpdated,
   onPlaceAdded,
   onPlaceRemoved,
+  onTagCreated,
+  onPlaceTagsSet,
   onError,
 }: Props) {
   const [listFilter, setListFilter] = useState('')
@@ -125,6 +133,7 @@ export function ReviewScreen({
     try {
       const { place, updatedRows, merged } = await keepGroup(selected.rows, form, listIdByFile)
       onPlaceAdded(place)
+      onPlaceTagsSet(place.id, form.tagIds, merged ? 'union' : 'replace')
       onRowsUpdated(updatedRows)
       setLastAction({
         type: 'keep',
@@ -312,6 +321,20 @@ export function ReviewScreen({
                     In NYC (uncheck to keep for future cities)
                   </span>
                 </label>
+                <div className="form-grid-cell wide">
+                  <span className="field-label">Labels (bar, restaurant, food cart…)</span>
+                  <TagPicker
+                    idPrefix="review"
+                    allTags={tags}
+                    selectedIds={form.tagIds}
+                    onChange={(ids) => setField('tagIds', ids)}
+                    onCreate={async (label) => {
+                      const tag = await createTag(label)
+                      onTagCreated(tag)
+                      return tag
+                    }}
+                  />
+                </div>
                 <label>
                   Cuisine
                   <input
