@@ -9,26 +9,45 @@ import type {
 
 const ROW_SELECT = 'id,source_file,row_num,title,note,url,cid::text,triage_status,place_id'
 
+// Supabase caps every request at 1,000 rows server-side regardless of the
+// requested range, so all rows are fetched in pages until the count is met.
+async function fetchAllImportRows(): Promise<ImportRow[]> {
+  const PAGE = 1000
+  const rows: ImportRow[] = []
+  let total: number | null = null
+  for (let from = 0; total === null || rows.length < total; from += PAGE) {
+    const { data, error, count } = await supabase
+      .from('import_rows')
+      .select(ROW_SELECT, { count: 'exact' })
+      .order('id')
+      .range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    if (count === null) throw new Error('import_rows fetch returned no count')
+    total = count
+    const page = data as unknown as ImportRow[]
+    if (page.length === 0 && rows.length < total) {
+      throw new Error(`fetched ${rows.length} of ${total} import_rows — empty page at ${from}`)
+    }
+    rows.push(...page)
+  }
+  if (rows.length !== total) {
+    throw new Error(`fetched ${rows.length} of ${total} import_rows`)
+  }
+  return rows
+}
+
 export async function fetchAll(): Promise<{
   rows: ImportRow[]
   lists: List[]
   places: PlaceLite[]
 }> {
-  const [rowsRes, listsRes, placesRes] = await Promise.all([
-    supabase
-      .from('import_rows')
-      .select(ROW_SELECT, { count: 'exact' })
-      .order('id')
-      .range(0, 1999),
+  const [rows, listsRes, placesRes] = await Promise.all([
+    fetchAllImportRows(),
     supabase.from('lists').select('*').order('name'),
     supabase.from('places').select('id,cid::text,name,cuisine,borough'),
   ])
-  for (const res of [rowsRes, listsRes, placesRes]) {
+  for (const res of [listsRes, placesRes]) {
     if (res.error) throw new Error(res.error.message)
-  }
-  const rows = rowsRes.data as unknown as ImportRow[]
-  if (rowsRes.count !== null && rows.length !== rowsRes.count) {
-    throw new Error(`fetched ${rows.length} of ${rowsRes.count} import_rows — pagination bug`)
   }
   return {
     rows,
