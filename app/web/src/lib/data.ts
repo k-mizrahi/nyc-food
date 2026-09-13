@@ -108,16 +108,55 @@ function emptyToNull(s: string): string | null {
   return t === '' ? null : t
 }
 
+async function linkLists(
+  placeId: string,
+  rows: ImportRow[],
+  listIdBySourceFile: Map<string, number>,
+): Promise<void> {
+  const listIds = [...new Set(rows.map((r) => r.source_file))].map((sf) => {
+    const id = listIdBySourceFile.get(sf)
+    if (id === undefined) throw new Error(`no list for source_file '${sf}'`)
+    return id
+  })
+  const { error } = await supabase
+    .from('place_lists')
+    .upsert(
+      listIds.map((list_id) => ({ place_id: placeId, list_id })),
+      { onConflict: 'place_id,list_id', ignoreDuplicates: true },
+    )
+  if (error) throw new Error(error.message)
+}
+
 // Keep a CID group: create the place, link its source lists, mark rows kept.
+// If a place with this CID already exists (interrupted undo, re-import), the
+// rows merge into it and its fields are left untouched.
 // Slug collisions retry with a numeric suffix; any other error surfaces raw.
 export async function keepGroup(
   rows: ImportRow[],
   form: KeepForm,
   listIdBySourceFile: Map<string, number>,
-): Promise<{ place: Place; updatedRows: ImportRow[] }> {
+): Promise<{ place: Place; updatedRows: ImportRow[]; merged: boolean }> {
   const cid = rows[0].cid
   const base = slugify(form.name) || (cid ? `place-${cid}` : `place-row-${rows[0].id}`)
   const gmapsUrl = cid ? `https://maps.google.com/?cid=${cid}` : rows[0].url
+
+  if (cid) {
+    const { data: existing, error: exError } = await supabase
+      .from('places')
+      .select(PLACE_SELECT)
+      .eq('cid', cid)
+      .maybeSingle()
+    if (exError) throw new Error(exError.message)
+    if (existing) {
+      const place = existing as unknown as Place
+      await linkLists(place.id, rows, listIdBySourceFile)
+      const updatedRows = await updateRows(
+        rows.map((r) => r.id),
+        { triage_status: 'kept', place_id: place.id },
+      )
+      return { place, updatedRows, merged: true }
+    }
+  }
 
   const payload = {
     name: form.name.trim(),
@@ -151,21 +190,12 @@ export async function keepGroup(
   }
   if (!place) throw new Error(`no free slug for '${base}' after 5 attempts`)
 
-  const listIds = [...new Set(rows.map((r) => r.source_file))].map((sf) => {
-    const id = listIdBySourceFile.get(sf)
-    if (id === undefined) throw new Error(`no list for source_file '${sf}'`)
-    return id
-  })
-  const { error: plError } = await supabase
-    .from('place_lists')
-    .insert(listIds.map((list_id) => ({ place_id: place!.id, list_id })))
-  if (plError) throw new Error(plError.message)
-
+  await linkLists(place.id, rows, listIdBySourceFile)
   const updatedRows = await updateRows(
     rows.map((r) => r.id),
     { triage_status: 'kept', place_id: place.id },
   )
-  return { place, updatedRows }
+  return { place, updatedRows, merged: false }
 }
 
 export async function updatePlace(id: string, form: KeepForm): Promise<Place> {

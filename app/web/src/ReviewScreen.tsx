@@ -61,6 +61,9 @@ export function ReviewScreen({
   const [busy, setBusy] = useState(false)
   const [lastAction, setLastAction] = useState<LastAction | null>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
+  // Synchronous re-entry guard: two rapid keypresses can both read stale
+  // `busy` state before React re-renders; the ref flips immediately.
+  const busyRef = useRef(false)
 
   const listNameByFile = useMemo(
     () => new Map(lists.map((l) => [l.source_file, l.name])),
@@ -116,28 +119,31 @@ export function ReviewScreen({
   }
 
   async function doKeep() {
-    if (!selected || !form || busy) return
+    if (!selected || !form || busyRef.current) return
+    busyRef.current = true
     setBusy(true)
     try {
-      const { place, updatedRows } = await keepGroup(selected.rows, form, listIdByFile)
+      const { place, updatedRows, merged } = await keepGroup(selected.rows, form, listIdByFile)
       onPlaceAdded(place)
       onRowsUpdated(updatedRows)
       setLastAction({
         type: 'keep',
         rowIds: selected.rows.map((r) => r.id),
         placeId: place.id,
-        label: place.name,
+        label: merged ? `${place.name} (merged into existing)` : place.name,
       })
       advanceAfterAction(selected.key)
     } catch (e) {
       onError((e as Error).message)
     } finally {
+      busyRef.current = false
       setBusy(false)
     }
   }
 
   async function doDrop() {
-    if (!selected || busy) return
+    if (!selected || busyRef.current) return
+    busyRef.current = true
     setBusy(true)
     try {
       onRowsUpdated(await dropRows(selected.rows.map((r) => r.id)))
@@ -150,12 +156,14 @@ export function ReviewScreen({
     } catch (e) {
       onError((e as Error).message)
     } finally {
+      busyRef.current = false
       setBusy(false)
     }
   }
 
   async function doUndo() {
-    if (!lastAction || busy) return
+    if (!lastAction || busyRef.current) return
+    busyRef.current = true
     setBusy(true)
     try {
       if (lastAction.type === 'keep') {
@@ -168,6 +176,7 @@ export function ReviewScreen({
     } catch (e) {
       onError((e as Error).message)
     } finally {
+      busyRef.current = false
       setBusy(false)
     }
   }

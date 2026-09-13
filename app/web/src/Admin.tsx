@@ -116,7 +116,11 @@ export function Admin({ session }: { session: Session }) {
           rows={rows}
           places={places}
           onRowsUpdated={applyRowUpdates}
-          onPlaceAdded={(p) => setPlaces((prev) => [...prev, p])}
+          onPlaceAdded={(p) =>
+            setPlaces((prev) =>
+              prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p],
+            )
+          }
           onPlaceRemoved={(id) => setPlaces((prev) => prev.filter((p) => p.id !== id))}
           onError={setError}
         />
